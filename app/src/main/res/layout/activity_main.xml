@@ -7,7 +7,7 @@
     tools:context=".MainActivity">
 
     <Button
-        android:id="@+id/btn_open_hotspot"
+        android:id="@+id/btn_open_wifi"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="打开wifi连接热点"
@@ -17,11 +17,40 @@
         app:layout_constraintTop_toTopOf="parent"
         android:onClick="connect_hotspot"/>
     <Button
+        android:id="@+id/btn_open_hotspot"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="打开wifi热点"
-        app:layout_constraintLeft_toLeftOf="@+id/btn_open_hotspot"
-        app:layout_constraintTop_toBottomOf="@+id/btn_open_hotspot"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/btn_open_wifi"
+        app:layout_constraintRight_toRightOf="parent"
         android:onClick="create_wifi_hotspot"/>
+    <Button
+        android:id="@+id/btn_receveA"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="发送音频"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/btn_open_hotspot"
+        app:layout_constraintRight_toRightOf="parent"
+        android:onClick="onStartAudioSend" />
+    <Button
+        android:id="@+id/btn_sendToS"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="客户端发送数据给服务端"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/btn_receveA"
+        app:layout_constraintRight_toRightOf="parent"
+        android:onClick="SendToServer" />
+    <Button
+        android:id="@+id/btn_sendToC"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="服务端发送数据给客户端"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/btn_sendToS"
+        app:layout_constraintRight_toRightOf="parent"
+        android:onClick="SendToClient" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

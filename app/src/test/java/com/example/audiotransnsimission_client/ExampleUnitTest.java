@@ -1,4 +1,4 @@
-package com.example.audiotransnsimission;
+package com.example.audiotransnsimission_client;
 
 import org.junit.Test;
 
