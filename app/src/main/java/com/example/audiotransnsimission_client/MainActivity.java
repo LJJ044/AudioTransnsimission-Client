@@ -16,6 +16,7 @@ import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
@@ -52,12 +53,16 @@ public class MainActivity extends AppCompatActivity {
     private static final int MSG_SENDED_ERROR = 6;
     private ExecutorService mExecutor;
     private ListenerThread listenerThread;
+    private AudioRecorder audioRecorder;
+    private boolean isConnected;
+    Socket socket;
     private WifiApConnectReceiver wifiApConnectReceiver = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        Log.i("板子存储目录", Environment.getExternalStorageDirectory().getAbsolutePath());
         am = new WifiAdmin(this);
         mExecutor = Executors.newCachedThreadPool();
         //registerReceiver(WifiReceiver,new IntentFilter(Wifi_Scan_Result));
@@ -147,24 +152,57 @@ public class MainActivity extends AppCompatActivity {
         DhcpInfo dhcpInfo = am.mWifiManager.getDhcpInfo();
         String ip = intToIp(dhcpInfo.gateway);
         Toast.makeText(this, "wifi已连接到热点IP: " + ip, Toast.LENGTH_SHORT).show();
-        mExecutor.execute(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    Socket socket = new Socket(ip, PORT);
-                    Log.d("SSID的IP: ", ip);
-                    if (socket != null) {
-                        ConnectThread connectThread = new ConnectThread(socket, mHandler);
-                        mExecutor.execute(connectThread);
-                    }
-
-                } catch (IOException e) {
-                    e.printStackTrace();
+        mExecutor.execute(() -> {
+            try {
+                Socket socket = new Socket(ip, PORT);
+                Log.d("SSID的IP: ", ip);
+                if (socket != null) {
+                    ConnectThread connectThread = new ConnectThread(socket, mHandler);
+                    mExecutor.execute(connectThread);
                 }
+
+            } catch (IOException e) {
+                e.printStackTrace();
             }
         });
-       // listenerThread = new ListenerThread(PORT,mHandler);
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        mExecutor.execute(() ->{
+            try {
+                socket = new Socket(ip, PORT);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        });
+        // listenerThread = new ListenerThread(PORT,mHandler);
         //mExecutor.execute(listenerThread);
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+            audioRecorder = AudioRecorder.getInstance();
+            audioRecorder.createDefaultAudio();
+            audioRecorder.startRecord();
+            mExecutor.execute(() -> {
+                byte[] buff = new byte[audioRecorder.bufferSizeInBytes];
+                while (true) {
+                    int length = audioRecorder.audioRecord.read(buff,0,audioRecorder.bufferSizeInBytes);
+                    Log.i("音频录制长度",buff.length+"");
+                    if(length != -1) {
+                        ConnectThread connectThread = new ConnectThread(socket, mHandler);
+                        connectThread.setHasPermission(true);
+                        connectThread.setStream(buff);
+                        mExecutor.execute(connectThread);
+                    }else {
+                        break;
+                    }
+                }
+            });
+
     }
     public void onStartAudioSend(View v) throws UnknownHostException {
             initConnect();
@@ -174,37 +212,26 @@ public class MainActivity extends AppCompatActivity {
         String ip = intToIp(dhcpInfo.gateway);
        // wifiApConnectReceiver = new WifiApConnectReceiver();
        // registerReceiver(wifiApConnectReceiver,new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
-        mExecutor.execute(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    Socket socket = new Socket(ip, PORT);
-                    Log.d("SSID的IP: ", ip);
-                    if (socket != null) {
-                        ConnectThread connectThread = new ConnectThread(socket, mHandler);
-                        connectThread.setHasPermission(true);
-                        connectThread.setMsg("你好，服务端");
-                        mExecutor.execute(connectThread);
-                    }
-
-                } catch (IOException e) {
-                    e.printStackTrace();
+        mExecutor.execute(() -> {
+            Log.d("SSID的IP: ", ip);
+                if (socket != null) {
+                    ConnectThread connectThread = new ConnectThread(socket, mHandler);
+                    connectThread.setHasPermission(true);
+                    connectThread.setMsg("你好，服务端");
+                    mExecutor.execute(connectThread);
                 }
-            }
+
         });
     }
     public void SendToClient(View v){
         DhcpInfo dhcpInfo = am.mWifiManager.getDhcpInfo();
-        mExecutor.execute(new Runnable() {
-            @Override
-            public void run() {
-                Socket socket = null;
-                socket = listenerThread.getSocket();
-                Log.d("SSID的IP: ",intToIp(dhcpInfo.ipAddress));
-                if (socket != null) {
-                    ConnectThread connectThread = new ConnectThread(socket, mHandler);
-                    mExecutor.execute(connectThread);
-                }
+        mExecutor.execute(() -> {
+            Socket socket = null;
+            socket = listenerThread.getSocket();
+            Log.d("SSID的IP: ",intToIp(dhcpInfo.ipAddress));
+            if (socket != null) {
+                ConnectThread connectThread = new ConnectThread(socket, mHandler);
+                mExecutor.execute(connectThread);
             }
         });
     }
@@ -237,6 +264,17 @@ public class MainActivity extends AppCompatActivity {
         private InputStream is;
         private OutputStream os;
         private boolean hasPermission;
+        private String msg;
+
+        public byte[] getStream() {
+            return stream;
+        }
+
+        public void setStream(byte[] stream) {
+            this.stream = stream;
+        }
+
+        private byte[] stream;
 
         public String getMsg() {
             return msg;
@@ -246,7 +284,7 @@ public class MainActivity extends AppCompatActivity {
             this.msg = msg;
         }
 
-        private String msg;
+
         public ConnectThread(Socket socket, Handler mHandler) {
             this.socket = socket;
             this.mHandler = mHandler;
@@ -256,14 +294,20 @@ public class MainActivity extends AppCompatActivity {
         public void run() {
             if(socket == null)
                 return;
-            mHandler.sendEmptyMessage(DEVFICE_CONNECTED);
+            if(!isConnected) {
+                mHandler.sendEmptyMessage(DEVFICE_CONNECTED);
+                isConnected = true;
+            }
+
             try{
                 os =socket.getOutputStream();
-                is = socket.getInputStream();
-                if(os != null && hasPermission)
-                    sendData(msg);
-                if(is != null)
-                obtainData();
+               // is = socket.getInputStream();
+                if(os != null && hasPermission) {
+                    sendAudioBytes(stream);
+                }
+                     //sendData(msg);
+                //if(is != null)
+                // obtainData();
             }catch (IOException e){
                 e.printStackTrace();
             }
@@ -275,6 +319,14 @@ public class MainActivity extends AppCompatActivity {
                 msg.what = MSG_SENDED;
                 msg.obj = str;
                 mHandler.sendMessage(msg);
+            } catch (IOException e) {
+                e.printStackTrace();
+                mHandler.sendEmptyMessage(MSG_SENDED_ERROR);
+            }
+        }
+        private void sendAudioBytes(byte[] audioData){
+            try {
+                os.write(audioData);
             } catch (IOException e) {
                 e.printStackTrace();
                 mHandler.sendEmptyMessage(MSG_SENDED_ERROR);
@@ -389,23 +441,23 @@ public class MainActivity extends AppCompatActivity {
             super.handleMessage(msg);
             switch (msg.what){
                 case DEVFICE_CONNECTING:
-                    Toast.makeText(MainActivity.this, "接收到客户端的连接 ："+(String) msg.obj, Toast.LENGTH_SHORT).show();
-                    mExecutor.execute(new ConnectThread(listenerThread.getSocket(),mHandler));
+                    //Toast.makeText(MainActivity.this, "接收到客户端的连接 ："+(String) msg.obj, Toast.LENGTH_SHORT).show();
+                    //mExecutor.execute(new ConnectThread(listenerThread.getSocket(),mHandler));
                     break;
                 case DEVFICE_CONNECTED:
                     Toast.makeText(MainActivity.this, "连接成功", Toast.LENGTH_SHORT).show();
                     break;
                 case MSG_SENDED:
-                    Toast.makeText(MainActivity.this, "发送数据 :"+(String) msg.obj, Toast.LENGTH_SHORT).show();
+                   // Toast.makeText(MainActivity.this, "发送数据 :"+(String) msg.obj, Toast.LENGTH_SHORT).show();
                     break;
                 case MSG_RECEIVED:
-                    Toast.makeText(MainActivity.this, "接收数据 :"+(String) msg.obj, Toast.LENGTH_SHORT).show();
+                   // Toast.makeText(MainActivity.this, "接收数据 :"+(String) msg.obj, Toast.LENGTH_SHORT).show();
                     break;
                 case MSG_SENDED_ERROR:
-                    Toast.makeText(MainActivity.this, "发送数据失败", Toast.LENGTH_SHORT).show();
+                    //Toast.makeText(MainActivity.this, "发送数据失败", Toast.LENGTH_SHORT).show();
                     break;
                 case MSG_RECEIVED_ERROR:
-                    Toast.makeText(MainActivity.this, "接收数据失败", Toast.LENGTH_SHORT).show();
+                    //Toast.makeText(MainActivity.this, "接收数据失败", Toast.LENGTH_SHORT).show();
                     break;
             }
         }
