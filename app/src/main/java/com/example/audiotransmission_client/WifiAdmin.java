@@ -1,4 +1,4 @@
-package com.example.audiotransnsimission_client;
+package com.example.audiotransmission_client;
 
 import android.Manifest;
 import android.app.Activity;
@@ -96,7 +96,7 @@ public class WifiAdmin {
         mWifiList = mWifiManager.getScanResults();
         if(mWifiList != null && !mWifiList.isEmpty())
             mContext.sendBroadcast(new Intent(Wifi_Scan_Result));
-        // 得到配置好的网络连接
+        // 得到配置好的网络连接 (高版本需要位置信息权限)
         if (ActivityCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions((Activity) mContext,new String[]{
                     Manifest.permission.ACCESS_FINE_LOCATION

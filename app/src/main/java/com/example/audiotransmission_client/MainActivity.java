@@ -1,6 +1,7 @@
-package com.example.audiotransnsimission_client;
+package com.example.audiotransmission_client;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 
@@ -8,7 +9,10 @@ import android.Manifest;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.media.AudioAttributes;
+import android.media.AudioManager;
 import android.net.ConnectivityManager;
 import android.net.DhcpInfo;
 import android.net.wifi.WifiConfiguration;
@@ -18,10 +22,14 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
+import android.os.Looper;
 import android.os.Message;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
 import android.widget.Toast;
+
+import com.example.audiotransmission_client.R;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -30,17 +38,21 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.Method;
 import java.net.InetAddress;
+import java.net.NetworkInterface;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 
 public class MainActivity extends AppCompatActivity {
     private WifiAdmin am;
-    private String Wifi_Scan_Result = "wifi_result_obtained";
+    private static final String Wifi_Scan_Result = "wifi_result_obtained";
     private WifiManager.LocalOnlyHotspotReservation mReservation;
     String SSID = "OnePlus 7";
     String PASS = "12345678";
@@ -53,11 +65,12 @@ public class MainActivity extends AppCompatActivity {
     private static final int MSG_SENDED_ERROR = 6;
     private ExecutorService mExecutor;
     private ListenerThread listenerThread;
-    private AudioRecorder audioRecorder;
+    private AudioReader audioReader;
     private boolean isConnected;
+    private Handler eHandle;
     Socket socket;
-    private WifiApConnectReceiver wifiApConnectReceiver = null;
 
+    @RequiresApi(api = Build.VERSION_CODES.M)
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -65,9 +78,27 @@ public class MainActivity extends AppCompatActivity {
         Log.i("板子存储目录", Environment.getExternalStorageDirectory().getAbsolutePath());
         am = new WifiAdmin(this);
         mExecutor = Executors.newCachedThreadPool();
-        //registerReceiver(WifiReceiver,new IntentFilter(Wifi_Scan_Result));
+        requestPermissions();
+        IntentFilter intentFilter =new IntentFilter();
+        intentFilter.addAction(Wifi_Scan_Result);
+        //intentFilter.addAction("android.media.VOLUME_CHANGED_ACTION");
+        //intentFilter.addAction(WifiManager.WIFI_STATE_CHANGED_ACTION);
+        intentFilter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
+        registerReceiver(commonReceiver,intentFilter);
     }
-
+    @RequiresApi(api = Build.VERSION_CODES.M)
+    private boolean requestPermissions(){
+        boolean hasPermission = checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED ||
+                                checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED||
+                                checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED;
+        if(hasPermission) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION
+                    , Manifest.permission.RECORD_AUDIO}, 0);
+        }else {
+            return true;
+        }
+        return false;
+    }
     public void connect_hotspot(View v){
         am.openWifi();
         am.startScan();
@@ -77,11 +108,38 @@ public class MainActivity extends AppCompatActivity {
     public void create_wifi_hotspot(View v){
         setWifiHotSpotEnabled(true);
     }
-    private final BroadcastReceiver WifiReceiver = new BroadcastReceiver() {
+    private final BroadcastReceiver commonReceiver = new BroadcastReceiver() {
+        @RequiresApi(api = Build.VERSION_CODES.M)
         @Override
         public void onReceive(Context context, Intent intent) {
-           if(!am.isConnected)
-                am.addNetwork(am.CreateWifiInfo("OnePlus 7","12345678",3));
+            if (intent.getAction().equals(Wifi_Scan_Result)) {
+                if (!am.isConnected)
+                    am.addNetwork(am.CreateWifiInfo("OnePlus 7", "12345678", 3));
+            }else if(intent.getAction().equals("android.media.VOLUME_CHANGED_ACTION")) {
+                AudioManager audioManager = (AudioManager) getApplicationContext().getSystemService(AUDIO_SERVICE);
+                int streamVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
+                int maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+                Log.i("设备最大音量",maxVolume+"");
+                ConnectThread connectThread = new ConnectThread(socket, mHandler);
+                connectThread.setHasPermission(true);
+                connectThread.setMsg((streamVolume/maxVolume)+"");
+                mExecutor.execute(connectThread);
+            }
+            else if(intent.getAction().equals(WifiManager.WIFI_STATE_CHANGED_ACTION)){
+                am.openWifi();
+                am.startScan();
+                if(!am.isConnected)
+                    am.addNetwork(am.CreateWifiInfo("OnePlus 7","12345678",3));
+            }
+            else if(intent.getAction().equals(ConnectivityManager.CONNECTIVITY_ACTION)) {
+                WifiInfo wifiInfo = am.mWifiManager.getConnectionInfo();
+                if (wifiInfo != null) {
+                    if(requestPermissions())
+                   mHandler.postDelayed(() -> initConnect(),2000);
+                } else {
+                    Toast.makeText(context, "wifi未连接到热点", Toast.LENGTH_SHORT).show();
+                }
+            }
         }
     };
     // wifi热点开关
@@ -125,10 +183,9 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public void onStarted(WifiManager.LocalOnlyHotspotReservation reservation) {
                     mReservation = reservation;
-                    reservation.getWifiConfiguration().SSID = SSID;
-                    reservation.getWifiConfiguration().preSharedKey = PASS;
-                  //  callbak.onConnected("", sid, pwd);
-                    Log.d("热点","SSID:"+SSID+" PASS:" +PASS);
+                    //String SSID = reservation.getWifiConfiguration().SSID = "mi6";
+                    //String PASS = reservation.getWifiConfiguration().preSharedKey = "66666666";
+                    Log.d("热点","SSID:"+reservation.getWifiConfiguration().SSID+" PASS:" +reservation.getWifiConfiguration().preSharedKey);
                 }
 
                 @Override
@@ -139,7 +196,6 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public void onFailed(int reason) {
                     Log.d("热点","wifi ap is failed to open");
-                  //  callbak.onConnected("wifi ap is failed to open", null, null);
                 }
             }, new Handler());
 //            am.mWifiManager.setWifiApConfiguration(config);
@@ -149,72 +205,72 @@ public class MainActivity extends AppCompatActivity {
         return false;
     }
     private void initConnect(){
+        if(audioReader == null) {
+            audioReader = AudioReader.getInstance();
+            audioReader.createDefaultAudio();
+        }
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
         DhcpInfo dhcpInfo = am.mWifiManager.getDhcpInfo();
         String ip = intToIp(dhcpInfo.gateway);
         Toast.makeText(this, "wifi已连接到热点IP: " + ip, Toast.LENGTH_SHORT).show();
         mExecutor.execute(() -> {
-            try {
-                Socket socket = new Socket(ip, PORT);
-                Log.d("SSID的IP: ", ip);
-                if (socket != null) {
+         /*   try {
+                    socket = new Socket(ip, PORT);
                     ConnectThread connectThread = new ConnectThread(socket, mHandler);
                     mExecutor.execute(connectThread);
-                }
 
             } catch (IOException e) {
                 e.printStackTrace();
-            }
+            }*/
+            Looper.prepare();
+            eHandle = new Handler();
+            eHandle.post(execution);
+            Looper.loop();
+
         });
-        try {
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-        mExecutor.execute(() ->{
-            try {
-                socket = new Socket(ip, PORT);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        });
-        // listenerThread = new ListenerThread(PORT,mHandler);
+       // listenerThread = new ListenerThread(PORT,mHandler);
         //mExecutor.execute(listenerThread);
-        try {
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-            audioRecorder = AudioRecorder.getInstance();
-            audioRecorder.createDefaultAudio();
-            audioRecorder.startRecord();
-            mExecutor.execute(() -> {
-                byte[] buff = new byte[audioRecorder.bufferSizeInBytes];
-                while (true) {
-                    int length = audioRecorder.audioRecord.read(buff,0,audioRecorder.bufferSizeInBytes);
-                    Log.i("音频录制长度",buff.length+"");
-                    if(length != -1) {
-                        ConnectThread connectThread = new ConnectThread(socket, mHandler);
-                        connectThread.setHasPermission(true);
-                        connectThread.setStream(buff);
-                        mExecutor.execute(connectThread);
-                    }else {
-                        break;
-                    }
-                }
-            });
 
     }
-    public void onStartAudioSend(View v) throws UnknownHostException {
+    private Runnable execution = new Runnable() {
+        @Override
+        public void run() {
+            mHandler.postDelayed(() -> {
+                mExecutor.execute(() -> {
+                    DhcpInfo dhcpInfo = am.mWifiManager.getDhcpInfo();
+                    String ip = intToIp(dhcpInfo.gateway);
+                    try {
+                        socket = new Socket(ip, PORT);
+                        ConnectThread connectThread = new ConnectThread(socket, mHandler);
+                        mExecutor.execute(connectThread);
+
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                });
+
+
+            },1000);
+          eHandle.postDelayed(this,1000);
+        }
+    };
+    public void onStartAudioSend(View v) {
             initConnect();
     }
     public void SendToServer(View v){
         DhcpInfo dhcpInfo = am.mWifiManager.getDhcpInfo();
         String ip = intToIp(dhcpInfo.gateway);
+        Toast.makeText(this, "客户端的网关："+ip, Toast.LENGTH_SHORT).show();
        // wifiApConnectReceiver = new WifiApConnectReceiver();
        // registerReceiver(wifiApConnectReceiver,new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
         mExecutor.execute(() -> {
             Log.d("SSID的IP: ", ip);
                 if (socket != null) {
+
                     ConnectThread connectThread = new ConnectThread(socket, mHandler);
                     connectThread.setHasPermission(true);
                     connectThread.setMsg("你好，服务端");
@@ -225,15 +281,41 @@ public class MainActivity extends AppCompatActivity {
     }
     public void SendToClient(View v){
         DhcpInfo dhcpInfo = am.mWifiManager.getDhcpInfo();
+        String ip = intToIp(dhcpInfo.gateway);
+        Toast.makeText(this, "客户端的网关："+getWifiApIpAddress(), Toast.LENGTH_SHORT).show();
         mExecutor.execute(() -> {
             Socket socket = null;
-            socket = listenerThread.getSocket();
-            Log.d("SSID的IP: ",intToIp(dhcpInfo.ipAddress));
-            if (socket != null) {
+            try {
+                socket = new Socket(ip,PORT);
                 ConnectThread connectThread = new ConnectThread(socket, mHandler);
                 mExecutor.execute(connectThread);
+            } catch (IOException e) {
+                e.printStackTrace();
             }
+
         });
+    }
+    public String getWifiApIpAddress() {
+        try {
+            for (Enumeration<NetworkInterface> en = NetworkInterface
+                    .getNetworkInterfaces(); en.hasMoreElements(); ) {
+                NetworkInterface intf = en.nextElement();
+                if (intf.getName().contains("wlan")) {
+                    for (Enumeration<InetAddress> enumIpAddr = intf
+                            .getInetAddresses(); enumIpAddr.hasMoreElements(); ) {
+                        InetAddress inetAddress = enumIpAddr.nextElement();
+                        if (!inetAddress.isLoopbackAddress()
+                                && (inetAddress.getAddress().length == 4)) {
+                            Log.d("Main", inetAddress.getHostAddress());
+                            return inetAddress.getHostAddress();
+                        }
+                    }
+                }
+            }
+        } catch (SocketException ex) {
+            Log.e("Main", ex.toString());
+        }
+        return null;
     }
     /**
      * 获取连接到热点上的手机ip
@@ -265,6 +347,7 @@ public class MainActivity extends AppCompatActivity {
         private OutputStream os;
         private boolean hasPermission;
         private String msg;
+        private byte[] stream;
 
         public byte[] getStream() {
             return stream;
@@ -273,8 +356,6 @@ public class MainActivity extends AppCompatActivity {
         public void setStream(byte[] stream) {
             this.stream = stream;
         }
-
-        private byte[] stream;
 
         public String getMsg() {
             return msg;
@@ -300,16 +381,39 @@ public class MainActivity extends AppCompatActivity {
             }
 
             try{
-                os =socket.getOutputStream();
-               // is = socket.getInputStream();
-                if(os != null && hasPermission) {
-                    sendAudioBytes(stream);
+                //os =socket.getOutputStream();
+                is = socket.getInputStream();
+                //if(os != null && hasPermission) {
+                   // if(!TextUtils.isEmpty(msg))
+                     //   sendData(msg);
+                    //if(stream != null)
+                      //  sendAudioBytes(stream);
+               // }
+                if(is != null) {
+                    obtainAudio();
+                   // if(!TextUtils.isEmpty(msg))
+                   // obtainData();
                 }
-                     //sendData(msg);
-                //if(is != null)
-                // obtainData();
             }catch (IOException e){
                 e.printStackTrace();
+            }
+        }
+        private void obtainAudio(){
+            audioReader.readAudio();
+            while (true){
+                try {
+                    byte[] buffer = new byte[audioReader.bufferSizeInBytes];
+                    int length;
+                    length = is.read(buffer);
+                    if(length <0)
+                        break;
+                    audioReader.audioTrack.write(buffer,0,length);
+                    Log.i("读取音频长度",buffer.length+"");
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    mHandler.sendEmptyMessage(MSG_RECEIVED_ERROR);
+                }
+
             }
         }
         private void sendData(String str){
@@ -367,11 +471,10 @@ public class MainActivity extends AppCompatActivity {
         private Socket socket;
         private int port;
         public ListenerThread(int Port,Handler mHandler) {
-            this.serverSocket = serverSocket;
             this.mHandlerR = mHandler;
             this.port = Port;
             try {
-                serverSocket = new ServerSocket(Port);
+                serverSocket = new ServerSocket(port);
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -398,38 +501,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
     }
-    public class WifiApConnectReceiver extends BroadcastReceiver{
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            if(intent.getAction().equals(ConnectivityManager.CONNECTIVITY_ACTION)){
-                    WifiInfo wifiInfo = am.mWifiManager.getConnectionInfo();
-                    if(wifiInfo != null) {
-                        DhcpInfo dhcpInfo = am.mWifiManager.getDhcpInfo();
-                        Toast.makeText(context, "wifi已连接到热点SSID: " + intToIp(dhcpInfo.ipAddress), Toast.LENGTH_SHORT).show();
-                        new Thread(new Runnable() {
-                            @Override
-                            public void run() {
-                                Socket socket = null;
-                                try {
-                                    socket = new Socket(intToIp(dhcpInfo.ipAddress), PORT);
-                                    Log.d("IP OF SSID: ",intToIp(dhcpInfo.ipAddress));
-                                    if (socket != null) {
-                                        ConnectThread connectThread = new ConnectThread(socket, mHandler);
-                                        mExecutor.execute(connectThread);
-                                    }
-                                } catch (IOException e) {
-                                    e.printStackTrace();
-                                }
-                            }
-                        }).start();
 
-                    }
-
-            }else {
-                Toast.makeText(context, "wifi未连接到热点", Toast.LENGTH_SHORT).show();
-            }
-        }
-    }
     private String intToIp(int paramInt)
     {
         return (paramInt & 0xFF) + "." + (0xFF & paramInt >> 8) + "." + (0xFF & paramInt >> 16) + "."
@@ -442,7 +514,7 @@ public class MainActivity extends AppCompatActivity {
             switch (msg.what){
                 case DEVFICE_CONNECTING:
                     //Toast.makeText(MainActivity.this, "接收到客户端的连接 ："+(String) msg.obj, Toast.LENGTH_SHORT).show();
-                    //mExecutor.execute(new ConnectThread(listenerThread.getSocket(),mHandler));
+                    // mExecutor.execute(new ConnectThread(listenerThread.getSocket(),mHandler));
                     break;
                 case DEVFICE_CONNECTED:
                     Toast.makeText(MainActivity.this, "连接成功", Toast.LENGTH_SHORT).show();
@@ -465,12 +537,8 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-//        if(WifiReceiver != null)
-//            unregisterReceiver(WifiReceiver);
-        if(wifiApConnectReceiver != null)
-            unregisterReceiver(wifiApConnectReceiver);
-
+       if(commonReceiver != null)
+            unregisterReceiver(commonReceiver);
     }
-
 
 }

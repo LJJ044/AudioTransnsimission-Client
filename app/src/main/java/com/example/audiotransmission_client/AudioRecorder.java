@@ -1,4 +1,4 @@
-package com.example.audiotransnsimission_client;
+package com.example.audiotransmission_client;
 
 import android.media.AudioFormat;
 import android.media.AudioRecord;
@@ -15,11 +15,11 @@ import java.util.List;
  */
 public class AudioRecorder {
     //音频输入-麦克风
-    private final static int AUDIO_INPUT = MediaRecorder.AudioSource.REMOTE_SUBMIX;
+    private final static int AUDIO_INPUT = MediaRecorder.AudioSource.DEFAULT;
     //采用频率
     //44100是目前的标准，但是某些设备仍然支持22050，16000，11025
     //采样频率一般共分为22.05KHz、44.1KHz、48KHz三个等级
-    private final static int AUDIO_SAMPLE_RATE = 16000;
+    private final static int AUDIO_SAMPLE_RATE = 22500;
     //声道 单声道
     private final static int AUDIO_CHANNEL = AudioFormat.CHANNEL_IN_MONO;
     //编码
@@ -64,8 +64,8 @@ public class AudioRecorder {
      */
     public void createDefaultAudio() {
         // 获得缓冲区字节大小
-        //bufferSizeInBytes = AudioRecord.getMinBufferSize(AUDIO_SAMPLE_RATE,
-          //      AUDIO_CHANNEL, AUDIO_ENCODING);
+        bufferSizeInBytes = AudioRecord.getMinBufferSize(AUDIO_SAMPLE_RATE,
+                AUDIO_CHANNEL, AUDIO_ENCODING);
         audioRecord = new AudioRecord(AUDIO_INPUT, AUDIO_SAMPLE_RATE, AUDIO_CHANNEL, AUDIO_ENCODING, bufferSizeInBytes);
         status = Status.STATUS_READY;
     }
