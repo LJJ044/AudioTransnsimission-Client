@@ -6,6 +6,20 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
+    <RadioButton
+        android:id="@+id/btn_back"
+        android:layout_width="35dp"
+        android:layout_height="25dp"
+        android:drawableTop="@mipmap/go_back"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        android:paddingTop="3dp"
+        android:button="@null"
+        android:gravity="center"
+        android:layout_marginTop="10dp"
+        android:layout_marginLeft="20dp"
+        android:paddingRight="25dp"
+        android:onClick="exit"/>
     <Button
         android:id="@+id/btn_open_wifi"
         android:layout_width="wrap_content"
@@ -29,11 +43,11 @@
         android:id="@+id/btn_receveA"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="发送音频"
+        android:text="接收音频"
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/btn_open_hotspot"
         app:layout_constraintRight_toRightOf="parent"
-        android:onClick="onStartAudioSend" />
+        android:onClick="onStartAudioReceive" />
     <Button
         android:id="@+id/btn_sendToS"
         android:layout_width="wrap_content"
