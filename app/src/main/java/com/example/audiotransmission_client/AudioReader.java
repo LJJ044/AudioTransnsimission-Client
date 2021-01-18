@@ -5,6 +5,10 @@ import android.media.AudioManager;
 import android.media.AudioTrack;
 import android.util.Log;
 
+/**
+ * 实现录音
+ *
+ */
 public class AudioReader {
     //采用频率
     //44100是目前的标准，但是某些设备仍然支持22050，16000，11025
@@ -16,7 +20,12 @@ public class AudioReader {
     private final static int AUDIO_ENCODING = AudioFormat.ENCODING_PCM_16BIT;
     // 缓冲区字节大小
     public int bufferSizeInBytes = 2048;
-    private PLayStatus status = PLayStatus.STATUS_AUDIO_NO_ARAEADY;
+
+    public PLayStatus getStatus() {
+        return status;
+    }
+
+    private PLayStatus status = PLayStatus.STATUS_AUDIO_NO_READY;
     public static AudioReader audioReader;
     //播放对象
     public AudioTrack audioTrack;
@@ -38,14 +47,18 @@ public class AudioReader {
     }
 
         public void readAudio(){
-        if(status == PLayStatus.STATUS_AUDIO_NO_ARAEADY)
+        if(status == PLayStatus.STATUS_AUDIO_NO_READY)
             Log.d("AudioReader---","===play error===");
         status = PLayStatus.STATUS_AUDIO_PLAY;
         audioTrack.play();
         }
+        public void stopRead(){
+        audioTrack.stop();
+        status = PLayStatus.STATUS_AUDIO_STOP;
+        }
       enum PLayStatus{
         STATUS_AUDIO_READY,
-        STATUS_AUDIO_NO_ARAEADY,
+        STATUS_AUDIO_NO_READY,
         STATUS_AUDIO_RESUME,
         STATUS_AUDIO_PLAY,
         STATUS_AUDIO_PAUSE,

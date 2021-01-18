@@ -9,6 +9,7 @@ import android.net.wifi.ScanResult;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
+import android.os.Handler;
 
 import androidx.core.app.ActivityCompat;
 
@@ -92,10 +93,13 @@ public class WifiAdmin {
 
     public void startScan() {
         mWifiManager.startScan();
-        // 得到扫描结果
-        mWifiList = mWifiManager.getScanResults();
-        if(mWifiList != null && !mWifiList.isEmpty())
-            mContext.sendBroadcast(new Intent(Wifi_Scan_Result));
+        new Handler().postDelayed(() ->{
+            // 得到扫描结果
+            mWifiList = mWifiManager.getScanResults();
+            if(mWifiList != null && !mWifiList.isEmpty())
+                //扫描到结果发送广播
+                mContext.sendBroadcast(new Intent(Wifi_Scan_Result));
+        } ,2000);
         // 得到配置好的网络连接 (高版本需要位置信息权限)
         if (ActivityCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions((Activity) mContext,new String[]{

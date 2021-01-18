@@ -21,24 +21,51 @@
         android:paddingRight="25dp"
         android:onClick="exit"/>
     <Button
+        android:id="@+id/output_pad"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:onClick="output_pad"
+        android:text="播放平板音频"
+        app:layout_constraintBottom_toTopOf="@+id/cancel_output_pad"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="1.0" />
+
+    <Button
+        android:id="@+id/cancel_output_pad"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:onClick="cancel_output_pad"
+        android:text="取消播放平板音频"
+        app:layout_constraintBottom_toTopOf="@+id/btn_open_wifi"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="1.0" />
+
+    <Button
         android:id="@+id/btn_open_wifi"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:onClick="connect_hotspot"
         android:text="打开wifi连接热点"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintRight_toRightOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        android:onClick="connect_hotspot"/>
+        android:visibility="gone"/>
+
     <Button
         android:id="@+id/btn_open_hotspot"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="打开wifi热点"
+        android:text="创建wifi热点"
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/btn_open_wifi"
         app:layout_constraintRight_toRightOf="parent"
-        android:onClick="create_wifi_hotspot"/>
+        android:onClick="create_wifi_hotspot"
+        android:visibility="gone"/>
     <Button
         android:id="@+id/btn_receveA"
         android:layout_width="wrap_content"
@@ -47,7 +74,8 @@
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/btn_open_hotspot"
         app:layout_constraintRight_toRightOf="parent"
-        android:onClick="onStartAudioReceive" />
+        android:onClick="onStartAudioReceive"
+        android:visibility="gone"/>
     <Button
         android:id="@+id/btn_sendToS"
         android:layout_width="wrap_content"
@@ -56,7 +84,8 @@
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/btn_receveA"
         app:layout_constraintRight_toRightOf="parent"
-        android:onClick="SendToServer" />
+        android:onClick="SendToServer"
+        android:visibility="gone"/>
     <Button
         android:id="@+id/btn_sendToC"
         android:layout_width="wrap_content"
@@ -65,6 +94,7 @@
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/btn_sendToS"
         app:layout_constraintRight_toRightOf="parent"
-        android:onClick="SendToClient" />
+        android:onClick="SendToClient"
+        android:visibility="gone"/>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
