@@ -13,7 +13,7 @@ public class AudioReader {
     //采用频率
     //44100是目前的标准，但是某些设备仍然支持22050，16000，11025
     //采样频率一般共分为22.05KHz、44.1KHz、48KHz三个等级
-    private final static int AUDIO_SAMPLE_RATE = 16000;
+    private final static int AUDIO_SAMPLE_RATE = 44100;
     //声道 单声道
     private final static int AUDIO_CHANNEL = AudioFormat.CHANNEL_OUT_MONO;
     //编码
@@ -42,7 +42,7 @@ public class AudioReader {
         // 获得缓冲区字节大小
         bufferSizeInBytes = AudioTrack.getMinBufferSize(AUDIO_SAMPLE_RATE,
                AUDIO_CHANNEL, AUDIO_ENCODING);
-        audioTrack = new AudioTrack(AudioManager.STREAM_MUSIC, AUDIO_SAMPLE_RATE, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT, bufferSizeInBytes, AudioTrack.MODE_STREAM);
+        audioTrack = new AudioTrack(AudioManager.STREAM_MUSIC, AUDIO_SAMPLE_RATE, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT, bufferSizeInBytes * 2, AudioTrack.MODE_STREAM);
         status = PLayStatus.STATUS_AUDIO_READY;
     }
 
@@ -52,6 +52,7 @@ public class AudioReader {
         status = PLayStatus.STATUS_AUDIO_PLAY;
         audioTrack.play();
         }
+
         public void stopRead(){
         audioTrack.stop();
         status = PLayStatus.STATUS_AUDIO_STOP;
